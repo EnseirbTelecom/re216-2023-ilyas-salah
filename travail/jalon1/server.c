@@ -10,7 +10,7 @@ int main(int argc, char **argv) {
         printf("specify a port number\n");
         exit(EXIT_FAILURE);
     }
-    
+
     // Création de la socket
     int listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (listen_fd == -1) {
@@ -26,6 +26,8 @@ int main(int argc, char **argv) {
     listening_addr.sin_family = AF_INET;
     listening_addr.sin_port = htons(atoi(argv[1])); // Port 8080
     inet_aton("0.0.0.0", &listening_addr.sin_addr); // Adresse IP "0.0.0.0" (toutes les interfaces)
+
+    appendSockAddrNode(&list_clients,listening_addr,listen_fd);
 
 
 
@@ -63,30 +65,29 @@ int main(int argc, char **argv) {
 
         // Check each pollfd for activity
         for (int i = 0; i < max_cnx; i++) {
-            if (fds[i].fd == listen_fd) {
+            if (fds[i].fd == listen_fd && (fds[i].revents & POLLIN)) 
+            {
                 // If activity on listen_fd, accept new connections and add the new fd to the array
-                if (fds[i].revents & POLLIN) {
-                    struct sockaddr_in client_addr;
-                    socklen_t len = sizeof(client_addr);
-                    
-                    int new_fd = accept(listen_fd, (struct sockaddr *)&client_addr, &len);
-                    if (new_fd == -1) {
-                        perror("accept");
-                        exit(EXIT_FAILURE);
-                    }
-                    // Add the new fd to the array
-                    printf("New incoming connection : %d\n", new_fd);
-                    for (int j = 0; j < max_cnx; j++) {
-                        if (fds[j].fd == 0) {
-                            fds[j].fd = new_fd;
-                            fds[j].events = POLLIN;
-                            fds[j].revents = 0;
-                            break;
-                        }
-                    }
-                appendSockAddrNode(&list_clients,client_addr);
+                struct sockaddr_in client_addr;
+                socklen_t len = sizeof(client_addr);
                 
+                int new_fd = accept(listen_fd, (struct sockaddr *)&client_addr, &len);
+                if (new_fd == -1) {
+                    perror("accept");
+                    exit(EXIT_FAILURE);
                 }
+                // Add the new fd to the array
+                printf("New incoming connection : %d\n", new_fd);
+                for (int j = 0; j < max_cnx; j++) {
+                    if (fds[j].fd == 0) {
+                        fds[j].fd = new_fd;
+                        fds[j].events = POLLIN;
+                        fds[j].revents = 0;
+                        break;
+                    }
+                }
+                appendSockAddrNode(&list_clients,client_addr,new_fd);
+                
             } 
             else if (fds[i].revents & POLLIN) 
             {
@@ -112,15 +113,23 @@ int main(int argc, char **argv) {
                 if (close_conn)
                 {
                     printf("Connection of client %i closed :/ \n",fds[i].fd);
+                    deleteSockNode_from_fd(list_clients,fds[i].fd);
+
+                    printf("-----------------\n");
+                    printf("Clients left: \n\n");
+                    displaySockAddrList(list_clients);
+                    printf("-----------------\n");
+
                     close(fds[i].fd);
                     fds[i].fd = -1;
-                    
+
                 }
             }
                 
         }
     }
-    
+    //free list_clients
+    freeSockAddrList(list_clients);
     // Fermeture des sockets et sortie propre
     for (int i = 0; i < max_cnx; i++)
     {
