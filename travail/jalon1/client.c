@@ -34,11 +34,13 @@ int main(int argc, char *argv[])
     if (argc < 3)
     {
         printf("enter a server address and port\n");
+        exit(EXIT_FAILURE);
     }
-    
+    //socket config
     int socket_fd = handle_connect(argv[1],argv[2]);
     printf("Connected to server \n");
 
+    //config of 2 pollfd , one for standard input and other for socket
     struct pollfd fds[2];
     memset(fds,'\0',sizeof(struct pollfd)*2);
     
@@ -53,6 +55,7 @@ int main(int argc, char *argv[])
     int active_fds = -1;
     int run = 1;
 
+    //timeout , client disconnect after 5min of none activity
     int timeout = 5*60*1000;
 
     printf("Entering the chat:\n");
@@ -70,7 +73,8 @@ int main(int argc, char *argv[])
             run = 0;
             break;
         }
-        if (fds[0].revents & POLLIN ) // check if data to read in socket from server
+
+        if (fds[0].revents & POLLIN ) // check if data to read in socket
         {
             char buffer[MSGLEN];
             memset(buffer,0,MSGLEN);
@@ -81,10 +85,17 @@ int main(int argc, char *argv[])
             {
             printf("Response from server: %s\n ",buffer);
             }
+            if (received <= 0)
+            {
+                printf("No connexion. Server closed :'(\n");
+                run = 0;
+                break;
+            }
+            
 
         }
 
-        if (fds[1].revents & POLLIN)
+        if (fds[1].revents & POLLIN) // check if data to read from standard input, if so : send to the socket
         {
             char buffer[MSGLEN];
             memset(buffer,0,MSGLEN);
@@ -104,14 +115,13 @@ int main(int argc, char *argv[])
                     perror("send!");
                     break;
                 }
-                printf("%li octets sent!!\n",sent);
+                printf("message sent!!\n");
             }   
         }
     }
-
+    //close socket
     close(fds[0].fd);
 
-    
     exit(EXIT_SUCCESS);
     
     return 0;

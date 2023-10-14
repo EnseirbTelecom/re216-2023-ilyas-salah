@@ -6,8 +6,6 @@ EXECS = client server
 
 all: $(EXECS) 
 
-
-
 %: %.c
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 

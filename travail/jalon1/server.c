@@ -1,22 +1,11 @@
-#include <stdio.h>
-#include <sys/types.h>
-#include <netdb.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <string.h>
-#include <stdlib.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <unistd.h>
-#include <poll.h>
+#include "common.h"
 #include "liste_chaine.h"
-#define TAILLE_MSG 1024
+
 
 int main(int argc, char **argv) {
     struct SockAddrNode * list_clients = NULL;
-    // Création de la socket
 
+    // Création de la socket
     int listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (listen_fd == -1) {
         perror("socket");
@@ -92,64 +81,47 @@ int main(int argc, char **argv) {
                 appendSockAddrNode(&list_clients,client_addr);
                 
                 }
-            } else {
-                // If activity on a client fd, read and display the message
-                if (fds[i].revents & POLLIN) {
-                    char msg[TAILLE_MSG];
-                    int close_conn = 0;
-					memset(msg, 0, TAILLE_MSG);
-					if (recv(fds[i].fd, msg, TAILLE_MSG, 0) <= 0) {
-                        close_conn = 1;
-                	}
-					printf("New message from client : %s\n", msg);
-					if (send(fds[i].fd, msg, strlen(msg), 0) <= 0) {
-					    close_conn = 1;
-					}
-					printf("Message resent to client\n");
-					char * quit = "/quit\n";
-					if(strcmp(quit,msg)==0){
-                        printf("client : %d has been disconnected\n",fds[i].fd);
-                        close_conn = 1;
-					}
-				if (close_conn)
-					{
-					close(fds[i].fd);
-					fds[i].fd = -1;
-					printf("Connection closed :/ \n");
-					}
-                    //int received = 0;
-                    /*
-                    while (to_read != received) {
-                        int ret = read(fds[i].fd, buf + received, to_read - received);
-                        if (ret == -1) {
-                            perror("read");
-                            exit(EXIT_FAILURE);
-                        } else if (ret == 0) {
-                            // Connection closed by client
-                            close(fds[i].fd);
-                            fds[i].fd = 0;
-                            break;
-                        }
-                        received += ret;
-                    } 
-                    // send msg again
-
-                    if(received > 0) {
-                        buf[received] = '\0';
-                        printf("New message: %s\n", buf);
-                        //displaySockAddrList(list_clients);
-                    }*/
+            } 
+            else if (fds[i].revents & POLLIN) 
+            {
+                char msg[MSGLEN];
+                int close_conn = 0;
+                memset(msg, 0, MSGLEN);
+                if (recv(fds[i].fd, msg, MSGLEN, 0) <= 0) {
+                    close_conn = 1;
                 }
-                
+                printf("New message from client %d : %s\n",fds[i].fd, msg);
+                if (send(fds[i].fd, msg, strlen(msg), 0) <= 0) 
+                {
+                    close_conn = 1;
+                }
+                printf("Message resent to client\n");
+                char * quit = "/quit\n";
+                if(strcmp(quit,msg)==0)
+                {
+                    printf("test\n");
+                    printf("client : %d has been disconnected\n",fds[i].fd);
+                    close_conn = 1;
+                }
+                if (close_conn)
+                {
+                    printf("Connection of client %i closed :/ \n",fds[i].fd);
+                    close(fds[i].fd);
+                    fds[i].fd = -1;
+                    
+                }
             }
+                
         }
     }
     
-
-    
-
     // Fermeture des sockets et sortie propre
-    close(listen_fd);
+    for (int i = 0; i < max_cnx; i++)
+    {
+        if(fds[i].fd >= 0)
+        close(fds[i].fd);
+    }
+
     exit(EXIT_SUCCESS);
 }
 
