@@ -1,81 +1,117 @@
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <stdlib.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <string.h>
-#include <unistd.h>
+#include "common.h"
+
+int handle_connect(char *server_address,char *server_port) {
+	struct addrinfo hints, *result, *rp;
+	int sfd;
+	memset(&hints, 0, sizeof(struct addrinfo));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+	if (getaddrinfo(server_address, server_port, &hints, &result) != 0) {
+		perror("getaddrinfo()");
+		exit(EXIT_FAILURE);
+	}
+	for (rp = result; rp != NULL; rp = rp->ai_next) {
+		sfd = socket(rp->ai_family, rp->ai_socktype,rp->ai_protocol);
+		if (sfd == -1) {
+			continue;
+		}
+		if (connect(sfd, rp->ai_addr, rp->ai_addrlen) != -1) {
+			break;
+		}
+		close(sfd);
+	}
+	if (rp == NULL) {
+		fprintf(stderr, "Could not connect\n");
+		exit(EXIT_FAILURE);
+	}
+	freeaddrinfo(result);
+	return sfd;
+}
 
 
-int main(int argc, char const *argv[])
+int main(int argc, char *argv[])
 {
-    if (argc < 2)
+    if (argc < 3)
     {
-        printf("needs 2 args\n");
-        exit(EXIT_FAILURE);
+        printf("enter a server address and port\n");
     }
     
-    int port = atoi(argv[2]);
-    printf("le port %i\n",port);
-    int fd = socket(AF_INET,SOCK_STREAM,0);
-    if (fd == -1)
+    int socket_fd = handle_connect(argv[1],argv[2]);
+    printf("Connected to server \n");
+
+    struct pollfd fds[2];
+    memset(fds,'\0',sizeof(struct pollfd)*2);
+    
+    fds[0].fd = socket_fd;
+    fds[0].events = POLLIN;
+    fds[0].revents = 0;
+
+    fds[1].fd = STDIN_FILENO;
+    fds[1].events = POLLIN;
+    fds[1].revents = 0;
+
+    int active_fds = -1;
+    int run = 1;
+
+    int timeout = 5*60*1000;
+
+    printf("Entering the chat:\n");
+    while (run)
     {
-        perror("socket");
-        exit(EXIT_FAILURE);
-    }
-
-    struct sockaddr_in addr;
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
-
-    inet_aton(argv[1],&addr.sin_addr);
-
-    int ret = connect(fd,(struct sockaddr *)&addr,sizeof(addr));
-    if (ret == -1)
-    {
-        perror("connect");
-        //exit(EXIT_FAILURE);
-    }
-    else {printf("connected\n");
-    }
-
-    char msg[256];
-    printf("chat:");
-    scanf("%s",msg);
-
-    //printf("server: %s\n with len %li",,strlen(buf));
-    int next_msg_size = strlen(msg);
-
-    int sent = 0;
-    while (sent != sizeof(int)){
-        int ret = write(fd,(char *)&next_msg_size+sent,sizeof(int));
-        if (ret == -1)
+        active_fds = poll(fds,2,timeout);
+        if (active_fds < 0)
         {
-            perror("write");
-            exit(EXIT_FAILURE);
+            perror("poll");
+            run = 0;
         }
-        sent += ret;
-    }
-    int to_send = next_msg_size;
-    sent = 0;
-    while (to_send != sent){
-        int ret = write(fd,(char *)msg+sent,to_send);
-        if (ret == -1)
+        if (active_fds == 0)
         {
-            perror("write");
-            exit(EXIT_FAILURE);
+            printf("Time Out\n");
+            run = 0;
+            break;
         }
-        sent += ret;
-    }
-    printf("sent!!");
-    // struct sockaddr_in addr_local_socket;
-    // int len = sizeof(addr_local_socket);
-    // getsockname(fd,(struct socketaddr_in *)&addr_local_socket,&len);
-    // u_int16_t local_port = ntohs(addr_local_socket.sin_port);
-    // printf("local socket port %u\n",local_port);
+        if (fds[0].revents & POLLIN ) // check if data to read in socket from server
+        {
+            char buffer[MSGLEN];
+            memset(buffer,0,MSGLEN);
+            
+            ssize_t  received = recv(fds[0].fd,buffer,MSGLEN,0);
+            
+            if(received>0)
+            {
+            printf("Response from server: %s\n ",buffer);
+            }
 
+        }
+
+        if (fds[1].revents & POLLIN)
+        {
+            char buffer[MSGLEN];
+            memset(buffer,0,MSGLEN);
+
+            ssize_t  received = read(fds[1].fd,buffer,MSGLEN);
+            
+            if(received>0)
+            {
+                if(strcmp(buffer,"/quit\n")==0)
+                {
+                    run = 0;
+                    break;
+                }
+                ssize_t sent = send(fds[0].fd,buffer,MSGLEN,0);
+                if (sent == -1)
+                {
+                    perror("send!");
+                    break;
+                }
+                printf("%li octets sent!!\n",sent);
+            }   
+        }
+    }
+
+    close(fds[0].fd);
+
+    
     exit(EXIT_SUCCESS);
     
     return 0;

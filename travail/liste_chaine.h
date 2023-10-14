@@ -1,9 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
+#include "common.h"
 
 // Structure pour stocker struct sockaddr
 struct SockAddrNode {
@@ -17,6 +12,7 @@ struct SockAddrNode* createSockAddrNode(struct sockaddr_in addr) {
     if (newNode == NULL) {
         fprintf(stderr, "Erreur : Échec de l'allocation mémoire\n");
         exit(1);
+
     }
     newNode->addr = addr;
     newNode->next = NULL;

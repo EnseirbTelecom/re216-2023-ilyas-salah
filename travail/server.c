@@ -1,7 +1,5 @@
 #include <stdio.h>
 #include <sys/types.h>
-#include <netdb.h>
-#include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
 #include <string.h>
@@ -28,8 +26,8 @@ int main(int argc, char **argv) {
     // Remplissage de la structure sockaddr_in pour définir l'adresse sur laquelle le serveur écoutera
     struct sockaddr_in listening_addr;
     listening_addr.sin_family = AF_INET;
-    listening_addr.sin_port = htons(atoi(argv[2])); // Port 8080
-    inet_aton(argv[1], &listening_addr.sin_addr); // Adresse IP "0.0.0.0" (toutes les interfaces)
+    listening_addr.sin_port = htons(atoi(argv[1])); // Port 8080
+    inet_aton("0.0.0.0", &listening_addr.sin_addr); // Adresse IP "0.0.0.0" (toutes les interfaces)
 
 
 
