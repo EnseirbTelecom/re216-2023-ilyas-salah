@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <sys/types.h>
+#include <netdb.h>
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
 #include <string.h>
@@ -9,6 +11,7 @@
 #include <unistd.h>
 #include <poll.h>
 #include "liste_chaine.h"
+#define TAILLE_MSG 1024
 
 int main(int argc, char **argv) {
     struct SockAddrNode * list_clients = NULL;
@@ -54,7 +57,7 @@ int main(int argc, char **argv) {
     fds[0].revents = 0;
 
     while (1) { // The server never stops accepting
-
+        printf("Waiting ...\n");
         // Call to poll to wait for events
         int active_fds = poll(fds, max_cnx, -1);
 
@@ -77,6 +80,7 @@ int main(int argc, char **argv) {
                         exit(EXIT_FAILURE);
                     }
                     // Add the new fd to the array
+                    printf("New incoming connection : %d\n", new_fd);
                     for (int j = 0; j < max_cnx; j++) {
                         if (fds[j].fd == 0) {
                             fds[j].fd = new_fd;
@@ -91,9 +95,30 @@ int main(int argc, char **argv) {
             } else {
                 // If activity on a client fd, read and display the message
                 if (fds[i].revents & POLLIN) {
-                    char buf[256];
-                    int to_read = sizeof(buf);
-                    int received = 0;
+                    char msg[TAILLE_MSG];
+                    int close_conn = 0;
+					memset(msg, 0, TAILLE_MSG);
+					if (recv(fds[i].fd, msg, TAILLE_MSG, 0) <= 0) {
+                        close_conn = 1;
+                	}
+					printf("New message from client : %s\n", msg);
+					if (send(fds[i].fd, msg, strlen(msg), 0) <= 0) {
+					    close_conn = 1;
+					}
+					printf("Message resent to client\n");
+					char * quit = "/quit\n";
+					if(strcmp(quit,msg)==0){
+                        printf("client : %d has been disconnected\n",fds[i].fd);
+                        close_conn = 1;
+					}
+				if (close_conn)
+					{
+					close(fds[i].fd);
+					fds[i].fd = -1;
+					printf("Connection closed :/ \n");
+					}
+                    //int received = 0;
+                    /*
                     while (to_read != received) {
                         int ret = read(fds[i].fd, buf + received, to_read - received);
                         if (ret == -1) {
@@ -106,24 +131,14 @@ int main(int argc, char **argv) {
                             break;
                         }
                         received += ret;
-                    }
+                    } 
                     // send msg again
-                    int send_back = strlen(buf);
-                    int sent = 0;
-                    while(send_back != sent){
-                        int ret = write(fds[i].fd,(char*)buf+sent,send_back-sent);
-                        if (ret == -1) {
-                            perror("write");
-                            exit(EXIT_FAILURE);                        
-                        }
-                        sent += ret;
-                    }
 
                     if(received > 0) {
                         buf[received] = '\0';
                         printf("New message: %s\n", buf);
                         //displaySockAddrList(list_clients);
-                    }
+                    }*/
                 }
                 
             }
@@ -137,4 +152,5 @@ int main(int argc, char **argv) {
     close(listen_fd);
     exit(EXIT_SUCCESS);
 }
+
 
