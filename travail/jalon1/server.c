@@ -5,6 +5,12 @@
 int main(int argc, char **argv) {
     struct SockAddrNode * list_clients = NULL;
 
+    if (argc < 2)
+    {
+        printf("specify a port number\n");
+        exit(EXIT_FAILURE);
+    }
+    
     // Création de la socket
     int listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (listen_fd == -1) {
