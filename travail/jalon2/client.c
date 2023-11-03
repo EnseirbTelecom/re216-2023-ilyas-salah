@@ -1,5 +1,136 @@
 #include "common.h"
-#include "communicate.h"
+#include "msg_struct.h"
+
+
+
+struct message messagefill(char buff[], char nickname[NICK_LEN]) {
+    size_t len = strlen(buff);
+
+    if (len > 0 && buff[len - 1] == '\n') {
+        buff[len - 1] = '\0'; // Replace the newline character with a null character
+    }
+
+    struct message msg;
+    memset(&msg, 0, sizeof(struct message));
+    strcpy(msg.infos, "");
+    strcpy(msg.nick_sender, nickname);
+    msg.pld_len = strlen(buff);
+
+    if (buff[0] != '/') {
+        msg.type = ECHO_SEND;
+    } else {
+        char temp[MSGLEN];
+        strcpy(temp, buff);
+        char *parts[3];
+        parts[0] = strtok(temp, " ");
+        parts[1] = strtok(NULL, " \n");
+
+        if (strcmp(parts[0], "/nick") == 0) {
+            msg.type = NICKNAME_NEW;
+            strcpy(nickname, parts[1]);
+            strcpy(msg.infos, parts[1]);
+        } else if (strncmp(temp, "/who", 5) == 0) {
+            msg.type = NICKNAME_LIST;
+            strcpy(msg.infos, "");
+        } else if (strcmp(parts[0], "/whois") == 0) {
+            msg.type = NICKNAME_INFOS;
+            strcpy(msg.infos, parts[1]);
+        } else if (strcmp(parts[0], "/msgall") == 0) {
+            char *text = buff + strlen(parts[0]);
+
+            //j'ai prefere envoyer que le message utile au lieu de tout le buff , plus facile a traiter au niveau du server, juste un forwarding.
+            strcpy(buff,text);
+            msg.pld_len = strlen(buff);
+
+            printf("text to send is : %s \n", text);
+            msg.type = BROADCAST_SEND;
+            strcpy(msg.infos, "\0");
+
+        } else if (strcmp(parts[0], "/msg") == 0) {
+            char *text = buff + strlen(parts[0]) + strlen(parts[1]) + 1;
+
+            //j'ai prefere envoyer que le message utile au lieu de tout le buff , plus facile a traiter au niveau du server, juste un forwarding.
+            strcpy(buff,text);
+            msg.pld_len = strlen(buff);
+
+            char recipient[NICK_LEN];
+            strncpy(recipient, parts[1], NICK_LEN);
+            printf("sending to %s the message : %s\n", recipient, text);
+            msg.type = UNICAST_SEND;
+            strcpy(msg.infos, recipient);
+        } else {
+            msg.type = ECHO_SEND;
+        }
+    }
+    return msg;
+}
+
+
+int valider_nom(char *name) {
+    int length = strlen(name);
+
+    // Check if the name is empty
+    if (length == 0) {
+        printf("The nickname entered is empty.\n");
+        return 0;
+    }
+
+    // Check if the name is too long
+    if (length > NICK_LEN - 1) {
+        printf("The nickname is too long.\n");
+        return 0;
+    }
+
+    // Check if all characters in the name are alphanumeric
+    for (int i = 0; i < length; i++) {
+        if (!isalnum(name[i])) {
+            printf("Please enter a valid nickname.\n");
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+void set_nickname(int socket, char *nick_name) {
+    char buffer[NICK_LEN];
+    struct message msg;
+    char repeat = 1;
+
+    while (repeat) {
+        if (repeat) {
+            printf("Choose a nickname. Ex: /nick salah\n");
+            repeat = 0; // Pour éviter de répéter le message
+        }
+
+        fgets(buffer, NICK_LEN, stdin);
+        buffer[strcspn(buffer, "\n")] = '\0'; // Supprimer le caractère de nouvelle ligne
+
+        msg = messagefill(buffer, nick_name);
+        printf("%s %s\n",msg_type_str[msg.type],msg.infos);
+
+        if (msg.type == NICKNAME_NEW && valider_nom(msg.infos)) {
+            // Mettre à jour nickname avec le nouveau nom
+            //free(nick_name); // Libérer l'ancien espace mémoire
+            //nick_name = (char *)malloc(NICK_LEN); // Allouer un nouvel espace mémoire
+            
+            strcpy(nick_name, msg.infos); // Copier le nouveau nom
+
+            if (send(socket, &msg, sizeof(msg), 0) <= 0) {
+                perror("send");
+                break;
+            }
+            if (send(socket, buffer, msg.pld_len, 0) <= 0) {
+                perror("send");
+                break;
+            }
+        } else {
+            printf("Invalid nickname. Please try again.\n");
+        }
+    }
+}
+
+
 
 int handle_connect(char *server_address,char *server_port) {
 	struct addrinfo hints, *result, *rp;
@@ -34,13 +165,17 @@ int main(int argc, char *argv[])
 {
     if (argc < 3)
     {
-        printf("enter a server address and port\n");
+        printf("Try : ./client <@IP_client> <Numero_Port> \n");
         exit(EXIT_FAILURE);
     }
-    //socket config
-    int socket_fd = handle_connect(argv[1],argv[2]);
-    printf("Connected to server \n");
 
+    int socket_fd = handle_connect(argv[1],argv[2]);
+    char * nick = (char *)malloc(NICK_LEN);
+    
+    printf("Connecting to server ... done! \n");
+
+    set_nickname(socket_fd,nick);
+    printf("nick: %s \n",nick);
     //config of 2 pollfd , one for standard input and other for socket
     struct pollfd fds[2];
     memset(fds,'\0',sizeof(struct pollfd)*2);
@@ -58,9 +193,6 @@ int main(int argc, char *argv[])
 
     //timeout , client disconnect after 5min of none activity
     int timeout = 5*60*1000;
-    
-    char buffer[MSGLEN];
-    struct message msgstruct;
 
     printf("Entering the chat:\n");
     while (run)
@@ -78,59 +210,67 @@ int main(int argc, char *argv[])
             break;
         }
 
-        if (fds[0].revents & POLLIN ) // check if data to read in socket
+        if (fds[0].revents & POLLIN ) 
         {
+            struct message mssg;
+            char buffer[MSGLEN];
+            memset(buffer,0,MSGLEN);
+            memset(&mssg,0,sizeof(mssg));
             
-            int  received = receive_msg(fds[0].fd,&msgstruct,buffer);
+            ssize_t received_structure = recv(fds[0].fd,&mssg,sizeof(struct message),0);
+            ssize_t received_message = recv(fds[0].fd,buffer,mssg.pld_len,0);
             
-            if(received>0)
+            if(received_message>0)
             {
-            printf("[Server] : %s\n ",buffer);
+                printf("[ %s ] : %s\n ",mssg.nick_sender,buffer);
             }
-            if (received <= 0)
+            else if (received_structure <= 0 && received_message <= 0)
             {
                 printf("No connexion. Server closed :'(\n");
                 run = 0;
                 break;
             }
-            
 
         }
 
-        if (fds[1].revents & POLLIN) // check if data to read from standard input, if so : send to the socket
+        if (fds[1].revents & POLLIN) 
         {
-            
-            memset(&msgstruct, 0, sizeof(struct message));
+            struct message msg;
+            char buffer[MSGLEN];
             memset(buffer,0,MSGLEN);
 
             ssize_t  received = read(fds[1].fd,buffer,MSGLEN);
             
-            if(received>=0)
+            if(received>0)
             {
                 if(strcmp(buffer,"/quit\n")==0)
                 {
                     run = 0;
                     break;
                 }
-                msgstruct.pld_len = strlen(buffer);
-                msgstruct.type = NICKNAME_LIST;
-                strncpy(msgstruct.infos,"toto\0",6); 
-                strcpy(msgstruct.nick_sender,"tit1\0");
                 
-                int sent = send_msg(fds[0].fd,&msgstruct,buffer);
-                if (sent == -1)
+			    msg = messagefill(buffer,nick);
+                ssize_t sent_structure = send(fds[0].fd,&msg,sizeof(struct message),0);
+                ssize_t sent_message = send(fds[0].fd,buffer,msg.pld_len,0);
+                if (sent_structure == -1)
                 {
-                    printf("error while sending\n");
+                    perror("send!");
                     break;
                 }
-                printf("message sent!!\n");
+                if(sent_message<=0)
+                {
+				    perror("send");
+                    break;
+                }
+                printf("message sent!! %s\n",msg.nick_sender);
             }   
         }
     }
+    //freeing
+    free(nick);
     //close socket
     close(fds[0].fd);
 
     exit(EXIT_SUCCESS);
-    
-    return 0;
-}
+    }
+

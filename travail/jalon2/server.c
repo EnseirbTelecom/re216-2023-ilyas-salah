@@ -90,6 +90,7 @@ int main(int argc, char **argv) {
                 }
                 appendSockAddrNode(&list_clients,client_addr,new_fd);  
             } 
+            
             else if (fds[i].revents & POLLIN) 
             {
                 int close_conn = 0;

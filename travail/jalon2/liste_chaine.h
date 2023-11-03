@@ -78,6 +78,8 @@ void deleteSockNode_from_fd(struct SockAddrNode* head, int fd) {
     }
 }
 
+
+
 // Fonction pour libérer la mémoire de la liste chaînée
 void freeSockAddrList(struct SockAddrNode* head) {
     struct SockAddrNode* current = head;

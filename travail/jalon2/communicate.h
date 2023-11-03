@@ -21,7 +21,7 @@ int receive_msg(int fd,struct message *msg,char *buff)
         return -1;
     }
 
-    printf("Received: %s", buff);
+    printf("Received: %s\n", buff);
 
     return 1;
 }
@@ -47,16 +47,19 @@ int send_msg(int fd,struct message *msg,char *buff)
     return 1;
 }
 
-int send_echo(int fd,char *message)
+int send_echo(int fd,char *message,char *sender)
 {
     struct message msg;
     memset(&msg, 0, sizeof(struct message));
     msg.pld_len = strlen(message);
     msg.type = ECHO_SEND;
+    strcpy(msg.nick_sender,sender);
     strncpy(msg.infos, "\0", 1);
     int res = send_msg(fd,&msg,message);
     return res;
 }
+
+
 
 int verify_nickname(char *nickname,struct SockAddrNode *head) // 3 code erreur, 0 si tres long -1 si nickname contient des caratere speciaux, -2 si nickname deja atribbue , -
 {
@@ -121,6 +124,24 @@ int all_users_name(char *buff ,struct SockAddrNode *head )
     return 1;
 }
 
+int broadcast(char *sender,char *message_utile,struct SockAddrNode *head )
+{
+    struct SockAddrNode* current = head;
+    current = current->next;
+
+    while (current != NULL)
+    {
+        if (strcmp(current->nickname,sender) != 0)
+        {
+           if(send_echo(current->fd,message_utile,sender)<=0)
+            return -1; 
+        }
+        
+        current = current->next; 
+    }
+    return 1;
+}
+
 int get_info_about_user(char *nickname,char *buff,struct SockAddrNode *head)
 {
     struct SockAddrNode* current = head;
@@ -145,10 +166,23 @@ int get_info_about_user(char *nickname,char *buff,struct SockAddrNode *head)
     return -1;
 }
 
+int fd_from_username(struct SockAddrNode* head,char *nickname){
+    struct SockAddrNode* current = head;
+    //current = current->next;
+
+    while (current != NULL)
+    {
+        if (strcmp(current->nickname,nickname) == 0)
+        {
+            return current->fd;
+        }
+        current = current->next; 
+    }
+    return -1;
+}
+
 int handle_request(int fd,struct message *msg,char *buff,struct SockAddrNode *head) 
 {
-    char *token;
-    token = strtok(buff," ");
     //printf("%s\n",token);
     if (msg->type == NICKNAME_NEW)
     {
@@ -156,7 +190,7 @@ int handle_request(int fd,struct message *msg,char *buff,struct SockAddrNode *he
         if (res == -1)
         {
             char *response = "Please try again using ONLY alphabets and numbers\n\0";
-            if(send_echo(fd,response)<= 0)
+            if(send_echo(fd,response,"Server")<= 0)
             {
                 return -1;
             }
@@ -164,7 +198,7 @@ int handle_request(int fd,struct message *msg,char *buff,struct SockAddrNode *he
         if (res == -2)
         {
             char *response = "Username already in use, please try another one\n\0";
-            if(send_echo(fd,response)<= 0)
+            if(send_echo(fd,response,"Server")<= 0)
             {
                 return -1;
             }
@@ -176,7 +210,7 @@ int handle_request(int fd,struct message *msg,char *buff,struct SockAddrNode *he
                 return -1;
             char response[MSGLEN] = "Welcome on the chat ";
             strcat(response,msg->infos);
-            if(send_echo(fd,response)<= 0)
+            if(send_echo(fd,response,"Server")<= 0)
             {
                 return -1;
             }
@@ -187,7 +221,7 @@ int handle_request(int fd,struct message *msg,char *buff,struct SockAddrNode *he
     {
         char response[MSGLEN] = "Online users are \n";
         all_users_name(response,head);
-        if(send_echo(fd,response)<= 0)
+        if(send_echo(fd,response,"Server")<= 0)
         {
             return -1;
         }
@@ -197,14 +231,46 @@ int handle_request(int fd,struct message *msg,char *buff,struct SockAddrNode *he
     {
         char response[MSGLEN];
         memset(response,'\0',MSGLEN);
-        get_info_about_user(msg->infos,response,head);
-        if(send_echo(fd,response)<= 0)
+        int res = get_info_about_user(msg->infos,response,head);
+        if (res == -1)
+        {
+            strcpy(response,"user does not exist :/ , type /who to see current users\n");
+        }
+        
+        if(send_echo(fd,response,"Server")<= 0)
         {
             return -1;
         }
     }
-    
-    
+    if (msg->type == UNICAST_SEND)
+    {
+        char response[MSGLEN];
+        memset(response,'\0',MSGLEN);
+
+        int fd_receiver = fd_from_username(head,msg->infos);
+        printf("%s\n",buff);
+        if (fd_receiver < 0)
+        {
+            strcpy(response,"The user you're trying to send to communicate with does not exist.\n");
+            if(send_echo(fd,response,"Server")<= 0)
+            {
+                return -1;
+            }
+        }
+        else if(send_echo(fd_receiver,buff,msg->nick_sender)<= 0)
+        {
+            return -1;
+        }
+
+    }
+    if (msg->type == BROADCAST_SEND)
+    {
+        if (broadcast(msg->nick_sender,buff,head) <= 0)
+        {
+            return -1;
+        }
+        
+    }
     return 0;
     
 }
