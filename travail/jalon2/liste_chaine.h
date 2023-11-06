@@ -6,10 +6,11 @@ struct SockAddrNode {
     int fd;
     char nickname[NICK_LEN];
     struct SockAddrNode* next;
+    char time[64];
 };
 
 // Fonction pour créer un nouveau nœud avec struct sockaddr
-struct SockAddrNode* createSockAddrNode(struct sockaddr_in addr,int fd) {
+struct SockAddrNode* createSockAddrNode(struct sockaddr_in addr,int fd,char *time) {
     struct SockAddrNode* newNode = (struct SockAddrNode*)malloc(sizeof(struct SockAddrNode));
     if (newNode == NULL) {
         fprintf(stderr, "Erreur : Échec de l'allocation mémoire\n");
@@ -19,13 +20,14 @@ struct SockAddrNode* createSockAddrNode(struct sockaddr_in addr,int fd) {
     newNode->addr = addr;
     newNode->next = NULL;
     newNode->fd = fd;
+    strcpy(newNode->time,time);
     memset(newNode->nickname,'\0',NICK_LEN);
     return newNode;
 }
 
 // Fonction pour ajouter un nœud à la fin de la liste chaînée
-void appendSockAddrNode(struct SockAddrNode** head, struct sockaddr_in addr,int fd) {
-    struct SockAddrNode* newNode = createSockAddrNode(addr,fd);
+void appendSockAddrNode(struct SockAddrNode** head, struct sockaddr_in addr,int fd,char *time) {
+    struct SockAddrNode* newNode = createSockAddrNode(addr,fd,time);
     if (*head == NULL) {
         *head = newNode;
         return;

@@ -92,44 +92,6 @@ int valider_nom(char *name) {
     return 1;
 }
 
-void set_nickname(int socket, char *nick_name) {
-    char buffer[NICK_LEN];
-    struct message msg;
-    char repeat = 1;
-
-    while (repeat) {
-        if (repeat) {
-            printf("Choose a nickname. Ex: /nick salah\n");
-            repeat = 0; // Pour éviter de répéter le message
-        }
-
-        fgets(buffer, NICK_LEN, stdin);
-        buffer[strcspn(buffer, "\n")] = '\0'; // Supprimer le caractère de nouvelle ligne
-
-        msg = messagefill(buffer, nick_name);
-        printf("%s %s\n",msg_type_str[msg.type],msg.infos);
-
-        if (msg.type == NICKNAME_NEW && valider_nom(msg.infos)) {
-            // Mettre à jour nickname avec le nouveau nom
-            //free(nick_name); // Libérer l'ancien espace mémoire
-            //nick_name = (char *)malloc(NICK_LEN); // Allouer un nouvel espace mémoire
-            
-            strcpy(nick_name, msg.infos); // Copier le nouveau nom
-
-            if (send(socket, &msg, sizeof(msg), 0) <= 0) {
-                perror("send");
-                break;
-            }
-            if (send(socket, buffer, msg.pld_len, 0) <= 0) {
-                perror("send");
-                break;
-            }
-        } else {
-            printf("Invalid nickname. Please try again.\n");
-        }
-    }
-}
-
 
 
 int handle_connect(char *server_address,char *server_port) {
@@ -174,8 +136,7 @@ int main(int argc, char *argv[])
     
     printf("Connecting to server ... done! \n");
 
-    set_nickname(socket_fd,nick);
-    printf("nick: %s \n",nick);
+
     //config of 2 pollfd , one for standard input and other for socket
     struct pollfd fds[2];
     memset(fds,'\0',sizeof(struct pollfd)*2);
@@ -215,7 +176,7 @@ int main(int argc, char *argv[])
             struct message mssg;
             char buffer[MSGLEN];
             memset(buffer,0,MSGLEN);
-            memset(&mssg,0,sizeof(mssg));
+            memset(&mssg,0,sizeof(struct message));
             
             ssize_t received_structure = recv(fds[0].fd,&mssg,sizeof(struct message),0);
             ssize_t received_message = recv(fds[0].fd,buffer,mssg.pld_len,0);
@@ -254,7 +215,7 @@ int main(int argc, char *argv[])
                 ssize_t sent_message = send(fds[0].fd,buffer,msg.pld_len,0);
                 if (sent_structure == -1)
                 {
-                    perror("send!");
+                    perror("send");
                     break;
                 }
                 if(sent_message<=0)
@@ -262,7 +223,7 @@ int main(int argc, char *argv[])
 				    perror("send");
                     break;
                 }
-                printf("message sent!! %s\n",msg.nick_sender);
+                //printf("message sent!! %s\n",msg.nick_sender);
             }   
         }
     }

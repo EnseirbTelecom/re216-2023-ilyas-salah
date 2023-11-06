@@ -9,5 +9,6 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <poll.h>
+#include <time.h>
 
 #define MSGLEN 1024

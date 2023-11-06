@@ -28,7 +28,7 @@ int main(int argc, char **argv) {
     listening_addr.sin_port = htons(atoi(argv[1])); // Port 8080
     inet_aton("0.0.0.0", &listening_addr.sin_addr); // Adresse IP "0.0.0.0" (toutes les interfaces)
 
-    appendSockAddrNode(&list_clients,listening_addr,listen_fd);
+    appendSockAddrNode(&list_clients,listening_addr,listen_fd,"0");
     strcpy(list_clients->nickname,"Server");
 
 
@@ -88,7 +88,13 @@ int main(int argc, char **argv) {
                         break;
                     }
                 }
-                appendSockAddrNode(&list_clients,client_addr,new_fd);  
+                time_t rawtime;
+                struct tm * timeinfo;
+
+                time ( &rawtime );
+                timeinfo = localtime ( &rawtime );
+                appendSockAddrNode(&list_clients,client_addr,new_fd,asctime (timeinfo));  
+                send_echo(new_fd,"please login with /nick <your pseudo>\n","Server");
             } 
             
             else if (fds[i].revents & POLLIN) 

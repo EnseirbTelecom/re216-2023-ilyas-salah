@@ -60,8 +60,7 @@ int send_echo(int fd,char *message,char *sender)
 }
 
 
-
-int verify_nickname(char *nickname,struct SockAddrNode *head) // 3 code erreur, 0 si tres long -1 si nickname contient des caratere speciaux, -2 si nickname deja atribbue , -
+int verify_nickname(int fd,char *nickname,struct SockAddrNode *head) // 3 code erreur, -2 si tres long -1 si nickname contient des caratere speciaux, 0 si nickname deja atribbue ,
 {
     char *n_copy = nickname;
     while (*n_copy) {
@@ -74,16 +73,16 @@ int verify_nickname(char *nickname,struct SockAddrNode *head) // 3 code erreur, 
     if (n_copy - nickname >= NICK_LEN)
     {
         printf("too long!\n");
-        return 0;
+        return -2;
     }
     
     struct SockAddrNode* current = head;
     while (current != NULL)
     {
-        if (strcmp(current->nickname,nickname) == 0)
+        if (strcmp(current->nickname,nickname) == 0 && current->fd != fd)
         {
             printf("username already taken %s\n",current->nickname);
-            return -2;
+            return 0;
         }
         current = current->next; 
     }
@@ -109,7 +108,7 @@ int store_nickname(char *nickname,struct SockAddrNode *head,int fd)
 int all_users_name(char *buff ,struct SockAddrNode *head )
 {
     struct SockAddrNode* current = head;
-    //current = current->next;
+    current = current->next;
 
     while (current != NULL)
     {
@@ -145,13 +144,15 @@ int broadcast(char *sender,char *message_utile,struct SockAddrNode *head )
 int get_info_about_user(char *nickname,char *buff,struct SockAddrNode *head)
 {
     struct SockAddrNode* current = head;
-    //current = current->next;
+    current = current->next;
 
     while (current != NULL)
     {
         if (strcmp(current->nickname,nickname) == 0)
         {
             strcat(buff,current->nickname);
+            strcat(buff," since ");
+            strcat(buff,current->time);
             strcat(buff," connected with IP address ");
             strcat(buff,inet_ntoa(current->addr.sin_addr));
             strcat(buff," and port number ");
@@ -184,9 +185,18 @@ int fd_from_username(struct SockAddrNode* head,char *nickname){
 int handle_request(int fd,struct message *msg,char *buff,struct SockAddrNode *head) 
 {
     //printf("%s\n",token);
+    if ((strcmp(msg->nick_sender,"") == 0 || verify_nickname(fd,msg->nick_sender,head) <= 0 )&& msg->type != NICKNAME_NEW)
+    {
+        if (send_echo(fd,"please login with /nick <your pseudo>\n","Server"))
+        {
+            return -1;
+        }
+        return 0;
+    }
+    
     if (msg->type == NICKNAME_NEW)
     {
-        int res = verify_nickname(msg->infos,head);
+        int res = verify_nickname(fd,msg->infos,head);
         if (res == -1)
         {
             char *response = "Please try again using ONLY alphabets and numbers\n\0";
@@ -195,9 +205,17 @@ int handle_request(int fd,struct message *msg,char *buff,struct SockAddrNode *he
                 return -1;
             }
         }
-        if (res == -2)
+        if (res == 0)
         {
             char *response = "Username already in use, please try another one\n\0";
+            if(send_echo(fd,response,"Server")<= 0)
+            {
+                return -1;
+            }
+        }
+        if (res == -2)
+        {
+            char *response = "Pfff Username too long!!! please make it short\n\0";
             if(send_echo(fd,response,"Server")<= 0)
             {
                 return -1;
