@@ -1,5 +1,6 @@
 #define NICK_LEN 128
 #define INFOS_LEN 128
+#define FILE_LEN 128
 
 enum msg_type { 
 	NICKNAME_NEW,
