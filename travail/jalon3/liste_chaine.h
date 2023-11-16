@@ -7,6 +7,7 @@ struct SockAddrNode {
     char nickname[NICK_LEN];
     struct SockAddrNode* next;
     char time[64];
+    char salon[CHANEL_LEN];
 };
 
 // Fonction pour créer un nouveau nœud avec struct sockaddr
@@ -22,6 +23,7 @@ struct SockAddrNode* createSockAddrNode(struct sockaddr_in addr,int fd,char *tim
     newNode->fd = fd;
     strcpy(newNode->time,time);
     memset(newNode->nickname,'\0',NICK_LEN);
+    memset(newNode->salon,'\0',CHANEL_LEN);
     return newNode;
 }
 

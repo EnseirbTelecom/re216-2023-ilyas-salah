@@ -13,3 +13,4 @@
 
 #define MSGLEN 1024
 #define CHANEL_LEN 15
+#define MAX_CLIENT_CHANNEL 100

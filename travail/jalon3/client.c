@@ -53,15 +53,14 @@ struct message messagefill(char buff[], char nickname[NICK_LEN], char salon[CHAN
 
             char recipient[NICK_LEN];
             strncpy(recipient, parts[1], NICK_LEN);
-            printf("sending to %s the message : %s\n", recipient, text);
+            //printf("sending to %s the message : %s\n", recipient, text);
             msg.type = UNICAST_SEND;
             strcpy(msg.infos, recipient);
         }else if(strcmp(parts[0], "/create") == 0){
 
             msg.type = MULTICAST_CREATE;
-            strcpy(salon,parts[1]);
+            //strcpy(salon,parts[1]);
             strcpy(msg.infos,parts[1]);
-            printf("creating the channel %s\n ...", salon);
 
         }
         else if(strcmp(parts[0], "/channel_list") == 0){
@@ -72,18 +71,19 @@ struct message messagefill(char buff[], char nickname[NICK_LEN], char salon[CHAN
         else if(strcmp(parts[0], "/join") == 0){
             msg.type = MULTICAST_JOIN;
             strcpy(msg.infos,parts[1]);
-			strcpy(salon,msg.infos);
-            printf("joining %s ...\n", salon);
+			//strcpy(salon,msg.infos);
+            //printf("joining %s ...\n", salon);
         }
         else if(strcmp(parts[0], "/send") == 0){
             msg.type = FILE_REQUEST;
         }
+        else if(strcmp(parts[0],"/quit") == 0 && strcmp(salon, "") != 0){
+            msg.type = MULTICAST_QUIT;
+			strcpy(msg.infos,salon);
+        }
         else if(strcmp(salon, "") != 0){
             msg.type = MULTICAST_SEND;
-        }
-        else if(strcmp(parts[0],"/quit") == 0){
-            msg.type = MULTICAST_QUIT;
-			strcpy(salon, "");
+            strcpy(msg.infos,salon);
         }
         else {
             msg.type = ECHO_SEND;
@@ -137,6 +137,7 @@ int main(int argc, char *argv[])
     int socket_fd = handle_connect(argv[1],argv[2]);
     char * nick = (char *)malloc(NICK_LEN);
     char * salon = (char *)malloc(CHANEL_LEN);
+    memset(salon,'\0',CHANEL_LEN);
     
     printf("Connecting to server ... done! \n");
 
@@ -187,10 +188,19 @@ int main(int argc, char *argv[])
             
             if(received_message>0)
             {
+                if (mssg.type == MULTICAST_QUIT)
+                {
+                    strcpy(salon,"");
+                }
+                if (mssg.type == MULTICAST_JOIN)
+                {
+                    strcpy(salon,mssg.infos);
+                }
+                
                 if(strcmp(salon,"") != 0)
                 {
                     // a determiner comment le client va voir les messages sur le salon 
-                    printf("channel : %s [ %s ] : %s \n", salon ,mssg.nick_sender,buffer);
+                    printf("[[ %s ]] [ %s ] : %s \n", salon ,mssg.nick_sender,buffer);
                 }
                 else
                 {
@@ -218,7 +228,7 @@ int main(int argc, char *argv[])
             
             if(received>0)
             {
-                if(strcmp(buffer,"/quit\n")==0)
+                if(strcmp(buffer,"/quit\n")==0 && strcmp(salon,"") == 0)
                 {
                     run = 0;
                     break;
