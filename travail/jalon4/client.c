@@ -1,147 +1,7 @@
 #include "common.h"
 #include "msg_struct.h"
 
-
-void SendFile(FILE *fp, int sockfd)
-{
-    char data[MSGLEN];
-
-    while (fgets(data, sizeof(data), fp) != NULL)
-    {
-        ssize_t bytes_sent = send(sockfd, data, strlen(data), 0);
-        
-        if (bytes_sent == -1)
-        {
-            perror("[-]Error in sending file.");
-            exit(1);
-        }
-
-        printf("data sent: %s \n", data);
-        memset(data, 0, sizeof(data));
-    }
-}
-
-void CreateFile(int sockfd)
-{
-    int run = 1;
-    FILE *fp;
-    char *filename = "received.txt";
-    char buffer[MSGLEN];
-
-    fp = fopen(filename, "w");
-    if (fp == NULL)
-    {
-        perror("[-]Error in opening file.");
-        return;
-    }
-
-    while (run)
-    {
-        ssize_t bytes = recv(sockfd, buffer, sizeof(buffer), 0);
-        if (bytes <= 0)
-        {
-            perror("[-]Error in receiving data.");
-            break;
-        }
-        printf("[+]Writing data into file ...\n");
-        fputs(buffer, fp);
-        memset(buffer, 0, sizeof(buffer)); 
-    }
-
-    fclose(fp);
-    return;
-}
-
-void HandleSendingFile(char *filename)
-{
-	int sockfd;
-	struct sockaddr_in server_addr;
-	FILE * fp;
-
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if (sockfd <= 0)
-	{
-		perror("[-]Error in socket");
-		exit(1);
-	}
-
-	printf("[+]Server socket created successfully.\n");
-
-	server_addr.sin_family = AF_INET;
-	server_addr.sin_port = PORT;
-	server_addr.sin_addr.s_addr = inet_addr(IP);
-
-	int fd = connect(sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr));
-	if (fd <= 0)
-	{
-		perror("[-]Error in socket");
-		exit(1);
-	}
-
-	printf("[+]Connected to Server.\n");
-
-	fp = fopen(filename, "r");
-	if (fp == NULL)
-	{
-		perror("[-]Error in reading file.");
-		exit(1);
-	}
-
-	SendFile(fp, sockfd);
-
-	printf("[+]File data sent successfully.\n");
-	printf("[+]Closing the connection.\n");
-	close(sockfd);
-}
-
-void HandleReceptionFile()
-{
-	int sockfd, fd_accept;
-	struct sockaddr_in server_addr, new_addr;
-	socklen_t addr_size;
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if (sockfd < 0)
-	{
-		perror("[-]Error in socket");
-		exit(1);
-	}
-
-	printf("[+]Server socket created successfully.\n");
-
-	server_addr.sin_family = AF_INET;
-	server_addr.sin_port = PORT;
-	server_addr.sin_addr.s_addr = inet_addr(IP);
-
-	int fd_bind = bind(sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr));
-	if (fd_bind <= 0)
-	{
-		perror("[-]Error in bind");
-		exit(1);
-	}
-
-	printf("[+]Binding successfull.\n");
-
-	if (listen(sockfd, 10) == 0)
-	{
-		printf("[+]Listening....\n");
-	}
-	else
-	{
-		perror("[-]Error in listening");
-		exit(1);
-	}
-
-	addr_size = sizeof(new_addr);
-	fd_accept = accept(sockfd, (struct sockaddr *) &new_addr, &addr_size);
-	CreateFile(fd_accept);
-	printf("[+]Data written in the file successfully.\n");
-	close(sockfd);
-	close(fd_accept);
-}
-
-
-
-struct message messagefill(char buff[], char nickname[NICK_LEN], char salon[CHANEL_LEN], char file[MSGLEN]) {
+struct message messagefill(char buff[], char nickname[NICK_LEN], char salon[CHANEL_LEN]) {
     size_t len = strlen(buff);
 
     if (len > 0 && buff[len - 1] == '\n') {
@@ -193,15 +53,14 @@ struct message messagefill(char buff[], char nickname[NICK_LEN], char salon[CHAN
 
             char recipient[NICK_LEN];
             strncpy(recipient, parts[1], NICK_LEN);
-            printf("sending to %s the message : %s\n", recipient, text);
+            //printf("sending to %s the message : %s\n", recipient, text);
             msg.type = UNICAST_SEND;
             strcpy(msg.infos, recipient);
         }else if(strcmp(parts[0], "/create") == 0){
 
             msg.type = MULTICAST_CREATE;
-            strcpy(salon,parts[1]);
+            //strcpy(salon,parts[1]);
             strcpy(msg.infos,parts[1]);
-            printf("creating the channel %s\n ...", salon);
 
         }
         else if(strcmp(parts[0], "/channel_list") == 0){
@@ -212,34 +71,19 @@ struct message messagefill(char buff[], char nickname[NICK_LEN], char salon[CHAN
         else if(strcmp(parts[0], "/join") == 0){
             msg.type = MULTICAST_JOIN;
             strcpy(msg.infos,parts[1]);
-			strcpy(salon,msg.infos);
-            printf("joining %s ...\n", salon);
+			//strcpy(salon,msg.infos);
+            //printf("joining %s ...\n", salon);
         }
-        else if (strcmp(parts[0], "/send") == 0) {
-            if (parts[1] != NULL) {
-                msg.type = FILE_REQUEST;
-
-                // Extract recipient and filename
-                char *recipient = parts[1];
-                char *filename = buff + strlen(parts[0]) + strlen(parts[1]) + 2;
-
-                // Set message information
-                strcpy(msg.infos, recipient);
-                strcpy(file, filename); 
-                printf("sending file request to %s for file: %s\n", recipient, filename);
-            } else {
-                // Handle the case where no recipient is provided
-                msg.type = ECHO_SEND;
-                printf("Usage: /send [recipient] [filename]\n");
-            }
+        else if(strcmp(parts[0], "/send") == 0){
+            msg.type = FILE_REQUEST;
+        }
+        else if(strcmp(parts[0],"/quit") == 0 && strcmp(salon, "") != 0){
+            msg.type = MULTICAST_QUIT;
+			strcpy(msg.infos,salon);
         }
         else if(strcmp(salon, "") != 0){
             msg.type = MULTICAST_SEND;
-        }
-        else if(strcmp(parts[0],"/quit") == 0){
-            msg.type = MULTICAST_QUIT;
             strcpy(msg.infos,salon);
-			strcpy(salon, "");
         }
         else {
             msg.type = ECHO_SEND;
@@ -249,42 +93,7 @@ struct message messagefill(char buff[], char nickname[NICK_LEN], char salon[CHAN
 }
 
 
-/*void set_nickname(int socket, char *nick_name, char* salon, char * file) {
-    char buffer[NICK_LEN];
-    struct message msg;
-    char repeat = 1;
 
-    while (repeat) {
-        if (repeat) {
-            printf("Choose a nickname. Ex: /nick salah\n");
-            repeat = 0; // Pour éviter de répéter le message
-        }
-
-        fgets(buffer, NICK_LEN, stdin);
-        buffer[strcspn(buffer, "\n")] = '\0'; // Supprimer le caractère de nouvelle ligne
-
-        msg = messagefill(buffer, nick_name,salon,file);
-
-        if (msg.type == NICKNAME_NEW ) {
-            // Mettre à jour nickname avec le nouveau nom
-            free(nick_name); // Libérer l'ancien espace mémoire
-            nick_name = (char *)malloc(NICK_LEN); // Allouer un nouvel espace mémoire
-            strcpy(nick_name, msg.infos); // Copier le nouveau nom
-
-            if (send(socket, &msg, sizeof(msg), 0) <= 0) {
-                perror("send");
-                break;
-            }
-            if (send(socket, buffer, msg.pld_len, 0) <= 0) {
-                perror("send");
-                break;
-            }
-        } else {
-            printf("Invalid nickname. Please try again.\n");
-        }
-    }
-}
-*/
 
 
 
@@ -328,10 +137,7 @@ int main(int argc, char *argv[])
     int socket_fd = handle_connect(argv[1],argv[2]);
     char * nick = (char *)malloc(NICK_LEN);
     char * salon = (char *)malloc(CHANEL_LEN);
-    char * filename = (char *)malloc(MSGLEN);
-
-
-    int type;
+    memset(salon,'\0',CHANEL_LEN);
     
     printf("Connecting to server ... done! \n");
 
@@ -380,21 +186,21 @@ int main(int argc, char *argv[])
             ssize_t received_structure = recv(fds[0].fd,&mssg,sizeof(struct message),0);
             ssize_t received_message = recv(fds[0].fd,buffer,mssg.pld_len,0);
             
-            if(received_message > 0 || received_structure > 0)
+            if(received_message>0)
             {
-                if (mssg.type == FILE_ACCEPT)
+                if (mssg.type == MULTICAST_QUIT)
                 {
-                    printf("ghansendiw\n");
-                    strcpy(filename, "send.txt");
-                    HandleSendingFile(filename);
-                    printf("Sending done \n");
-                    type = mssg.type;
+                    strcpy(salon,"");
                 }
-                //strcpy(nick, mssg.nick_sender);
+                if (mssg.type == MULTICAST_JOIN)
+                {
+                    strcpy(salon,mssg.infos);
+                }
+                
                 if(strcmp(salon,"") != 0)
                 {
                     // a determiner comment le client va voir les messages sur le salon 
-                    printf("channel : %s [ %s ] : %s \n", salon ,mssg.nick_sender,buffer);
+                    printf("[[ %s ]] [ %s ] : %s \n", salon ,mssg.nick_sender,buffer);
                 }
                 else
                 {
@@ -422,63 +228,25 @@ int main(int argc, char *argv[])
             
             if(received>0)
             {
-                if(strcmp(buffer,"/quit\n")==0)
+                if(strcmp(buffer,"/quit\n")==0 && strcmp(salon,"") == 0)
                 {
                     run = 0;
                     break;
                 }
-
-			    msg = messagefill(buffer,nick,salon,filename);
-                if(type = FILE_REQUEST)
+                
+			    msg = messagefill(buffer,nick,salon);
+                ssize_t sent_structure = send(fds[0].fd,&msg,sizeof(struct message),0);
+                ssize_t sent_message = send(fds[0].fd,buffer,msg.pld_len,0);
+                if (sent_structure == -1)
                 {
-                    printf("4444444444");
-                    type = 0;
-                    if (strcmp(buffer, "Y\n") == 0)
-                    {
-                        msg.type = FILE_ACCEPT;
-                        strcpy(msg.infos, nick);
-                        printf("yay\n");
-                    }
-                    else if(strcmp(buffer, "N\n") == 0)
-                    {
-                        msg.type = FILE_REJECT;
-                        strcpy(msg.infos, nick);
-                    }
-                    if (send(fds[1].fd, &msg, sizeof(struct message), 0) <= 0)
-						{
-							continue;
-						}
-
-					if (send(fds[1].fd, buffer, msg.pld_len, 0) <= 0)
-						{
-							continue;
-						}
-
-					if (msg.type == FILE_ACCEPT)
-						{
-							//start the p2p connection 
-                            printf("ghanacceptiw\n");
-							HandleReceptionFile();
-							printf("client_receiver done \n");
-						}
+                    perror("send");
+                    break;
                 }
-                else
+                if(sent_message<=0)
                 {
-                    ssize_t sent_structure = send(fds[0].fd,&msg,sizeof(struct message),0);
-                    ssize_t sent_message = send(fds[0].fd,buffer,msg.pld_len,0);
-                    printf("send");
-                    if (sent_structure == -1)
-                    {
-                        perror("send");
-                        break;
-                    }
-                    if(sent_message<=0)
-                    {
-                        perror("send");
-                        break;
+				    perror("send");
+                    break;
                 }
-                }
-
                 //printf("message sent!! %s\n",msg.nick_sender);
             }   
         }
@@ -486,7 +254,6 @@ int main(int argc, char *argv[])
     //freeing
     free(salon);
     free(nick);
-    free(filename);
     
     //close socket
     close(fds[0].fd);

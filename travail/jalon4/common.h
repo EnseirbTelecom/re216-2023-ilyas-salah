@@ -13,5 +13,4 @@
 
 #define MSGLEN 1024
 #define CHANEL_LEN 15
-#define PORT 12345
-#define IP "127.0.0.1"
+#define MAX_CLIENT_CHANNEL 100
