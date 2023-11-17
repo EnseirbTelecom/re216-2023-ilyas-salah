@@ -246,8 +246,8 @@ void write_file(int sockfd,char *filename)
 
         fwrite(buffer, 1, n, fp);
 
-        if (n < FILE_LEN)
-            break;
+        //if (n < FILE_LEN)
+          //  break;
     }
 
     fclose(fp);
@@ -360,7 +360,7 @@ int main(int argc, char *argv[])
 {
     if (argc < 3)
     {
-        printf("Try : ./client <@IP_client> <Numero_Port> \n");
+        printf(RED"Try : ./client <@IP_client> <Numero_Port> "RESET"\n");
         exit(EXIT_FAILURE);
     }
 
@@ -373,7 +373,7 @@ int main(int argc, char *argv[])
     memset(nick_sender_f,'\0',NICK_LEN);
     memset(salon,'\0',CHANEL_LEN);
     
-    printf("Connecting to server ... done! \n");
+    printf(GREEN"Connecting to server ... done!"RESET "\n");
 
 
     //config of 2 pollfd , one for standard input and other for socket
@@ -394,7 +394,7 @@ int main(int argc, char *argv[])
     //timeout , client disconnect after 5min of none activity
     int timeout = 5*60*1000;
 
-    printf("Entering the chat:\n");
+    printf(WHITE"Entering the chat:"RESET"\n");
     while (run)
     {
         active_fds = poll(fds,2,timeout);
@@ -405,7 +405,7 @@ int main(int argc, char *argv[])
         }
         if (active_fds == 0)
         {
-            printf("Time Out\n");
+            printf(RED"Time Out"RESET"\n");
             run = 0;
             break;
         }
@@ -434,11 +434,11 @@ int main(int argc, char *argv[])
                 if(strcmp(salon,"") != 0)
                 {
                     // a determiner comment le client va voir les messages sur le salon 
-                    printf("[[ %s ]] [ %s ] : ", salon ,mssg.nick_sender);
+                    printf(YELLOW"{ %s }"RESET RED": %s > "RESET, salon ,mssg.nick_sender);
                 }
                 else
                 {
-                    printf("[ %s ] : ",mssg.nick_sender);
+                    printf(RED"[ %s ] > "RESET,mssg.nick_sender);
                 }
 
                 if (mssg.type != FILE_REQUEST && mssg.type != FILE_ACCEPT && mssg.type != FILE_REJECT)
@@ -447,12 +447,12 @@ int main(int argc, char *argv[])
                 }
                 if (mssg.type == FILE_REQUEST)
                 {
-                    printf(" wants you to accept the transfer of the file named '%s'. Do you accept? [Y/N]\n",buffer);
+                    printf(" wants you to accept the transfer of the file named '%s'. Do you accept? "RED"[Y/N]"RESET"\n",buffer);
                     strcpy(nick_sender_f,mssg.nick_sender);
                 }
                 if (mssg.type == FILE_ACCEPT)
                 {
-                    printf("accepted file transfert. sending to ip %s\n",buffer);
+                    printf(GREEN"accepted file transfert. sending to ip :) %s"RESET"\n",buffer);
                     client_sender(file,buffer,nick);
                 }  
                 if (mssg.type == FILE_REJECT)
@@ -462,7 +462,7 @@ int main(int argc, char *argv[])
             }
             else if (received_structure <= 0 && received_message <= 0)
             {
-                printf("No connexion. Server closed :'(\n");
+                printf(RED"No connexion. Server closed :'("RESET"\n");
                 run = 0;
                 break;
             }
