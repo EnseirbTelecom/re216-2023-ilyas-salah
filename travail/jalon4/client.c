@@ -13,6 +13,26 @@ char* getFileName(char* filePath) {
     return fileName + 1;
 }
 
+void loadingBar(int total) {
+    int i;
+    printf("Loading: ");
+    for (i = 0; i <= total; ++i) {
+        printf("%c[2K", 27); 
+        printf("\r["); 
+        for (int j = 0; j < 50; j++) {
+            if (j <= (i * 50) / total) {
+                printf(YELLOW"#"RESET); 
+            } else {
+                printf(" ");
+            }
+        }
+        printf("] %d%%", (i * 100) / total); 
+        fflush(stdout);
+        usleep(10000); // sleep for 10 milliseconds (0.01 second)
+    }
+    printf("\n");
+}
+
 struct message messagefill(char buff[], char nickname[NICK_LEN], char salon[CHANEL_LEN],char *nick_sender,char *file_path) {
     size_t len = strlen(buff);
 
@@ -293,7 +313,7 @@ void client_sender(char *file_path,char *IP,char *nick)
 	}
 
 	send_file(fp, sockfd,getFileName(file_path),nick);
-
+    loadingBar(100);
 	printf("[+]File data sent successfully.\n");
 	printf("[+]Closing the connection.\n");
 	close(sockfd);
@@ -348,6 +368,7 @@ void client_receiver()
     {
         printf("Receiving the file from %s...",mssg.nick_sender);
         write_file(new_sock,mssg.infos);
+        loadingBar(100);
 	    printf("[+]Data written in the file successfully.\n");
 	    close(sockfd);
 	    close(new_sock);
@@ -360,7 +381,7 @@ int main(int argc, char *argv[])
 {
     if (argc < 3)
     {
-        printf("Try : ./client <@IP_client> <Numero_Port> \n");
+        printf(RED"Try : ./client <@IP_client> <Numero_Port> "RESET"\n");
         exit(EXIT_FAILURE);
     }
 
@@ -373,7 +394,7 @@ int main(int argc, char *argv[])
     memset(nick_sender_f,'\0',NICK_LEN);
     memset(salon,'\0',CHANEL_LEN);
     
-    printf("Connecting to server ... done! \n");
+    printf(GREEN"Connecting to server ... done!"RESET "\n");
 
 
     //config of 2 pollfd , one for standard input and other for socket
@@ -394,7 +415,7 @@ int main(int argc, char *argv[])
     //timeout , client disconnect after 5min of none activity
     int timeout = 5*60*1000;
 
-    printf("Entering the chat:\n");
+    printf(WHITE"Entering the chat:"RESET"\n");
     while (run)
     {
         active_fds = poll(fds,2,timeout);
@@ -405,7 +426,7 @@ int main(int argc, char *argv[])
         }
         if (active_fds == 0)
         {
-            printf("Time Out\n");
+            printf(RED"Time Out"RESET"\n");
             run = 0;
             break;
         }
@@ -447,22 +468,22 @@ int main(int argc, char *argv[])
                 }
                 if (mssg.type == FILE_REQUEST)
                 {
-                    printf(" wants you to accept the transfer of the file named '%s'. Do you accept? [Y/N]\n",buffer);
+                    printf(" wants you to accept the transfer of the file named '%s'. Do you accept? "RED"[Y/N]"RESET"\n",buffer);
                     strcpy(nick_sender_f,mssg.nick_sender);
                 }
                 if (mssg.type == FILE_ACCEPT)
                 {
-                    printf("accepted file transfert. sending to ip %s\n",buffer);
+                    printf(GREEN"accepted file transfert. sending to ip :) %s"RESET"\n",buffer);
                     client_sender(file,buffer,nick);
                 }  
                 if (mssg.type == FILE_REJECT)
                 {
-                    printf("cancelled file transfer\n");
+                    printf(RED"cancelled file transfer"RESET"\n");
                 } 
             }
             else if (received_structure <= 0 && received_message <= 0)
             {
-                printf("No connexion. Server closed :'(\n");
+                printf(RED"No connexion. Server closed :'("RESET"\n");
                 run = 0;
                 break;
             }
