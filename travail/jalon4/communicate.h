@@ -43,7 +43,7 @@ int send_msg(int fd,struct message *msg,char *buff)
         printf("error while sending msg utile\n");
         return -1;
     }
-    printf("Message sent: %s\n",buff);
+    printf(GREEN"Message sent:"RESET CYAN"%s"RESET"\n",buff);
     return 1;
 }
 
@@ -119,14 +119,14 @@ int verify_nickname(int fd,char *nickname,struct SockAddrNode *head) // 3 code e
     char *n_copy = nickname;
     while (*n_copy) {
         if (!isalnum(*n_copy)) {
-            printf("contains special character\n");
+            printf(RED"contains special character"RESET"\n");
             return -1; 
         }
         n_copy++;
     }
     if (n_copy - nickname >= NICK_LEN)
     {
-        printf("too long!\n");
+        printf(RED"too long!"RESET"\n");
         return -2;
     }
     
@@ -135,7 +135,7 @@ int verify_nickname(int fd,char *nickname,struct SockAddrNode *head) // 3 code e
     {
         if (strcmp(current->nickname,nickname) == 0 && current->fd != fd)
         {
-            printf("username already taken %s\n",current->nickname);
+            printf(RED"username already taken %s"RESET"\n",current->nickname);
             return 0;
         }
         current = current->next; 
@@ -148,7 +148,7 @@ int verify_channel_name(int fd,char *channel_name,struct channel_node *head) // 
     char *n_copy = channel_name;
     while (*n_copy) {
         if (!isalnum(*n_copy)) {
-            printf("contains special character\n");
+            printf(RED"contains special character"RESET"\n");
             return -1; 
         }
         n_copy++;
@@ -164,7 +164,7 @@ int verify_channel_name(int fd,char *channel_name,struct channel_node *head) // 
     {
         if (strcmp(current->name,channel_name) == 0)
         {
-            printf("Channel %s already exists \n",current->name);
+            printf(RED"Channel %s already exists"RESET" \n",current->name);
             return 0;
         }
         current = current->next; 
@@ -233,15 +233,23 @@ int get_info_about_user(char *nickname,char *buff,struct SockAddrNode *head)
     {
         if (strcmp(current->nickname,nickname) == 0)
         {
+            strcat(buff,MAGENTA);
             strcat(buff,current->nickname);
-            strcat(buff," since ");
+            strcat(buff,RESET);
+            strcat(buff," connected since ");
+            strcat(buff,MAGENTA);
             strcat(buff,current->time);
-            strcat(buff," connected with IP address ");
+            strcat(buff,RESET);
+            strcat(buff," with IP address ");
+            strcat(buff,MAGENTA);
             strcat(buff,inet_ntoa(current->addr.sin_addr));
+            strcat(buff,RESET);
             strcat(buff," and port number ");
+            strcat(buff,MAGENTA);
             char port[6] = {0};
             sprintf(port, "%d", ntohs(current->addr.sin_port));
             strcat(buff,port);
+            strcat(buff,RESET);
             //strcat(buff,"\n");
             return 1;
         }
@@ -309,7 +317,7 @@ int all_channels_name(char *buff ,struct channel_node *head )
     struct channel_node* current = head;
     if (current == NULL)
     {
-        strcpy(buff,"0 channels available to join right now\n");
+        strcpy(buff,RED"0 channels available to join right now"RESET"\n");
         return 0;
     }
     
@@ -378,7 +386,7 @@ int handle_request(int fd,struct message *msg,char *buff,struct SockAddrNode *he
     //printf("%s\n",token);
     if ((strcmp(msg->nick_sender,"") == 0 || verify_nickname(fd,msg->nick_sender,head) <= 0 )&& msg->type != NICKNAME_NEW)
     {
-        if (send_echo(fd,"please login with /nick <your pseudo>\n","Server"))
+        if (send_echo(fd,YELLOW"please login with /nick <your pseudo>"RESET"\n","Server"))
         {
             return -1;
         }
@@ -390,7 +398,7 @@ int handle_request(int fd,struct message *msg,char *buff,struct SockAddrNode *he
         int res = verify_nickname(fd,msg->infos,head);
         if (res == -1)
         {
-            char *response = "Please try again using ONLY alphabets and numbers\n\0";
+            char *response = RED"Please try again using ONLY alphabets and numbers"RESET"\n\0";
             if(send_echo(fd,response,"Server")<= 0)
             {
                 return -1;
@@ -418,7 +426,9 @@ int handle_request(int fd,struct message *msg,char *buff,struct SockAddrNode *he
             if(store_nickname(msg->infos,head,fd)<= 0)
                 return -1;
             char response[MSGLEN] = "Welcome on the chat ";
+            strcat(response,RED);
             strcat(response,msg->infos);
+            strcat(response,RESET);
             if(send_echo(fd,response,"Server")<= 0)
             {
                 return -1;
@@ -428,7 +438,7 @@ int handle_request(int fd,struct message *msg,char *buff,struct SockAddrNode *he
     
     if (msg->type == NICKNAME_LIST)
     {
-        char response[MSGLEN] = "Online users are \n";
+        char response[MSGLEN] = CYAN"Online users are "RESET"\n";
         all_users_name(response,head);
         if(send_echo(fd,response,"Server")<= 0)
         {
@@ -443,7 +453,7 @@ int handle_request(int fd,struct message *msg,char *buff,struct SockAddrNode *he
         int res = get_info_about_user(msg->infos,response,head);
         if (res == -1)
         {
-            strcpy(response,"user does not exist :/ , type /who to see current users\n");
+            strcpy(response,RED"user does not exist :/ , type /who to see current users"RESET"\n");
         }
         
         if(send_echo(fd,response,"Server")<= 0)
@@ -460,7 +470,7 @@ int handle_request(int fd,struct message *msg,char *buff,struct SockAddrNode *he
         printf("%s\n",buff);
         if (fd_receiver < 0)
         {
-            strcpy(response,"The user you're trying to send to communicate with does not exist.\n");
+            strcpy(response,RED"The user you're trying to send to communicate with does not exist."RESET"\n");
             if(send_echo(fd,response,"Server")<= 0)
             {
                 return -1;
@@ -486,7 +496,7 @@ int handle_request(int fd,struct message *msg,char *buff,struct SockAddrNode *he
         int res = verify_channel_name(fd,msg->infos,*channels);
         if (res == -1)
         {
-            char *response = "Please try again using ONLY alphabets and numbers\n\0";
+            char *response = RED"Please try again using ONLY alphabets and numbers"RESET"\n\0";
             if(send_echo(fd,response,"Server")<= 0)
             {
                 return -1;
@@ -494,7 +504,7 @@ int handle_request(int fd,struct message *msg,char *buff,struct SockAddrNode *he
         }
         if (res == 0)
         {
-            char *response = "Channel already exists, please try another one name or join the existing channel using /join <channel_name>\n\0";
+            char *response = RED"Channel already exists, please try another one name or join the existing channel using /join <channel_name>"RESET"\n\0";
             if(send_echo(fd,response,"Server")<= 0)
             {
                 return -1;
@@ -519,9 +529,9 @@ int handle_request(int fd,struct message *msg,char *buff,struct SockAddrNode *he
             printf("client name:%s\n",client->nickname);
             append_channel_node(channels,client,msg->infos);
             display_channels(*channels);
-            printf("channel created successfully\n");
+            printf(GREEN"channel created successfully"RESET"\n");
 
-            char response[MSGLEN] = "You have created channel ";
+            char response[MSGLEN] = GREEN"You have created channel "RESET;
             strcat(response,msg->infos);
 
             if(send_channel_joined(fd,response,"Server",msg->infos)<= 0)
@@ -539,18 +549,18 @@ int handle_request(int fd,struct message *msg,char *buff,struct SockAddrNode *he
         // 1 if channel deleted , 2 if client deleted from channel
         if (res == 1)
         {
-            char response[MSGLEN] = "You were the last user in this channel, ";
+            char response[MSGLEN] = YELLOW"You were the last user in this channel, "RESET;
             strcat(response,msg->infos);
-            strcat(response," has been destroyed");
+            strcat(response,YELLOW" has been destroyed"RESET);
             send_channel_quit(fd,response,"Server");
         }
         if (res == 2) {
-            char response1[MSGLEN] = "You have left channel ";
+            char response1[MSGLEN] = YELLOW"You have left channel "RESET;
             strcat(response1,msg->infos);
             send_channel_quit(fd,response1,"Server");
             char response2[MSGLEN];
             strcpy(response2,msg->nick_sender);
-            strcat(response2," has left ");
+            strcat(response2,YELLOW" has left "RESET);
             strcat(response2,msg->infos);
             send_in_channel("Server",response2,*channels,msg->infos,fd);
         }
