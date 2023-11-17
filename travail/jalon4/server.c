@@ -96,7 +96,7 @@ int main(int argc, char **argv) {
                 time ( &rawtime );
                 timeinfo = localtime ( &rawtime );
                 appendSockAddrNode(&list_clients,client_addr,new_fd,asctime (timeinfo));  
-                send_echo(new_fd,"please login with /nick <your pseudo>\n","Server");
+                send_echo(new_fd,"please login with /nick <your pseudo>\0","Server");
             } 
             
             else if (fds[i].revents & POLLIN) 

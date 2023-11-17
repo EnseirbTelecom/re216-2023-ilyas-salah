@@ -1,7 +1,19 @@
 #include "common.h"
 #include "msg_struct.h"
 
-struct message messagefill(char buff[], char nickname[NICK_LEN], char salon[CHANEL_LEN]) {
+char* getFileName(char* filePath) {
+    //find last sperator '/'
+    char *fileName = strrchr(filePath, '/');
+    
+    // if no separator found, return the full path
+    if (!fileName)
+        return filePath;
+    
+    
+    return fileName + 1;
+}
+
+struct message messagefill(char buff[], char nickname[NICK_LEN], char salon[CHANEL_LEN],char *nick_sender,char *file_path) {
     size_t len = strlen(buff);
 
     if (len > 0 && buff[len - 1] == '\n') {
@@ -13,9 +25,21 @@ struct message messagefill(char buff[], char nickname[NICK_LEN], char salon[CHAN
     strcpy(msg.infos, "");
     strcpy(msg.nick_sender, nickname);
     msg.pld_len = strlen(buff);
+    if (buff[0] == 'Y')
+    {
+        msg.type = FILE_ACCEPT;
+        strcpy(msg.infos,nick_sender);
+    }
+    else if (buff[0] == 'N')
+    {
+        msg.type = FILE_REJECT;
+        strcpy(msg.infos,nick_sender);
+    }
+    else if (buff[0] != '/') {
+        
+        msg.type = MULTICAST_SEND;
+        strcpy(msg.infos,salon);
 
-    if (buff[0] != '/') {
-        msg.type = ECHO_SEND;
     } else {
         char temp[MSGLEN];
         strcpy(temp, buff);
@@ -74,12 +98,36 @@ struct message messagefill(char buff[], char nickname[NICK_LEN], char salon[CHAN
 			//strcpy(salon,msg.infos);
             //printf("joining %s ...\n", salon);
         }
-        else if(strcmp(parts[0], "/send") == 0){
-            msg.type = FILE_REQUEST;
-        }
         else if(strcmp(parts[0],"/quit") == 0 && strcmp(salon, "") != 0){
             msg.type = MULTICAST_QUIT;
 			strcpy(msg.infos,salon);
+        }
+        else if (strcmp(parts[0], "/send") == 0) {
+            if (parts[1] != NULL) {
+                // Extract recipient and filename
+                strcpy(file_path,buff);
+                char *filepath_from_buffer = buff + strlen(parts[0]) + strlen(parts[1]) + 2 ;
+
+                // Set message information
+
+                // cpy filename into buffer
+                strcpy(file_path,filepath_from_buffer);
+                strcpy(buff,getFileName(file_path));
+				msg.pld_len = strlen(buff);
+
+                char recipient[NICK_LEN];
+                strncpy(recipient, parts[1], NICK_LEN);
+                //printf("sending to %s the message : %s\n", recipient, text);
+                msg.type = FILE_REQUEST;
+                strcpy(msg.infos, recipient);
+                printf("sending file request to %s for file: %s\n", recipient, file_path);
+                 
+
+            } else {
+                // Handle the case where no recipient is provided
+                msg.type = ECHO_SEND;
+                printf("Usage: /send [recipient] [filename]\n");
+            }
         }
         else if(strcmp(salon, "") != 0){
             msg.type = MULTICAST_SEND;
@@ -91,10 +139,6 @@ struct message messagefill(char buff[], char nickname[NICK_LEN], char salon[CHAN
     }
     return msg;
 }
-
-
-
-
 
 
 int handle_connect(char *server_address,char *server_port) {
@@ -125,6 +169,192 @@ int handle_connect(char *server_address,char *server_port) {
 	return sfd;
 }
 
+void send_file(FILE *fp, int sockfd,char *file_name,char *nick)
+{
+    if (fp == NULL)
+    {
+        fprintf(stderr, "Error: Invalid file pointer.\n");
+        return;
+    }
+
+    char buffer[FILE_LEN];
+    size_t bytesRead;
+
+    // sending stuct msg FILE SEND
+    struct message msg;
+    memset(&msg,'\0',sizeof(struct message));
+    strcpy(msg.infos,file_name);
+    msg.type = FILE_SEND;
+    msg.pld_len = FILE_LEN;
+    strcpy(msg.nick_sender,nick);
+    ssize_t sent_structure = send(sockfd,&msg,sizeof(struct message),0);
+    if (sent_structure == -1)
+    {
+        perror("send");
+    }
+    // msg.info "nom fichier"
+
+    while ((bytesRead = fread(buffer, 1, sizeof(buffer), fp)) > 0)
+    {
+        ssize_t sentBytes = send(sockfd, buffer, bytesRead, 0);
+
+        if (sentBytes == -1)
+        {
+            perror("[-]Error in sending file.");
+            exit(1);
+        }
+        else if (sentBytes < bytesRead)
+        {
+            fprintf(stderr, "Warning: not all bytes sent. Expected %zu, sent %zd.\n", bytesRead, sentBytes);
+        }
+
+        printf("Bytes sent: %zu\n", bytesRead);
+        memset(buffer, 0, sizeof(buffer));
+    }
+
+    if (ferror(fp))
+    {
+        perror("Error reading file");
+    }
+}
+
+void write_file(int sockfd,char *filename)
+{
+    int n;
+    FILE *fp;
+    char buffer[FILE_LEN];
+
+    fp = fopen(filename, "wb");
+    if (fp == NULL)
+    {
+        perror("[-]Error opening file");
+        return;
+    }
+
+    // RECV STRUCT MESSAGE
+
+    while (1)
+    {
+        n = recv(sockfd, buffer, FILE_LEN, 0);
+        if (n <= 0)
+        {
+            if (n < 0)
+                perror("Error receiving data");
+
+            break;
+        }
+
+        fwrite(buffer, 1, n, fp);
+
+        if (n < FILE_LEN)
+            break;
+    }
+
+    fclose(fp);
+    printf("[+]File received successfully.\n");
+}
+
+void client_sender(char *file_path,char *IP,char *nick)
+{
+	int e;
+
+	int sockfd;
+	struct sockaddr_in server_addr;
+	FILE * fp;
+
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	if (sockfd < 0)
+	{
+		perror("[-]Error in socket");
+		exit(1);
+	}
+
+	printf("[+]Server socket created successfully.\n");
+
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = PORT;
+	server_addr.sin_addr.s_addr = inet_addr(IP);
+
+	e = connect(sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr));
+	if (e == -1)
+	{
+		perror("[-]Error in socket");
+		exit(1);
+	}
+
+	printf("[+]Connected to Server.\n");
+
+	fp = fopen(file_path, "r");
+    printf("opened file path:%s\n reading %i",file_path,FILE_LEN);
+	if (fp == NULL)
+	{
+		perror("[-]Error in reading file.");
+		exit(1);
+	}
+
+	send_file(fp, sockfd,getFileName(file_path),nick);
+
+	printf("[+]File data sent successfully.\n");
+	printf("[+]Closing the connection.\n");
+	close(sockfd);
+}
+
+void client_receiver()
+{
+	int e;
+	int sockfd, new_sock;
+	struct sockaddr_in server_addr, new_addr;
+	socklen_t addr_size;
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	if (sockfd < 0)
+	{
+		perror("[-]Error in socket");
+		exit(1);
+	}
+
+	printf("[+]Server socket created successfully.\n");
+
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = PORT;
+	server_addr.sin_addr.s_addr = inet_addr("0.0.0.0");
+
+	e = bind(sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr));
+	if (e < 0)
+	{
+		perror("[-]Error in bind");
+		exit(1);
+	}
+
+	printf("[+]Binding successfull.\n");
+
+	if (listen(sockfd, 10) == 0)
+	{
+		printf("[+]Listening....\n");
+	}
+	else
+	{
+		perror("[-]Error in listening");
+		exit(1);
+	}
+
+	addr_size = sizeof(new_addr);
+	new_sock = accept(sockfd, (struct sockaddr *) &new_addr, &addr_size);
+
+
+    struct message mssg;
+    memset(&mssg,0,sizeof(struct message));
+    ssize_t received_structure = recv(new_sock,&mssg,sizeof(struct message),0);
+    if (mssg.type == FILE_SEND)
+    {
+        printf("Receiving the file from %s...",mssg.nick_sender);
+        write_file(new_sock,mssg.infos);
+	    printf("[+]Data written in the file successfully.\n");
+	    close(sockfd);
+	    close(new_sock);
+    }
+	
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -137,6 +367,10 @@ int main(int argc, char *argv[])
     int socket_fd = handle_connect(argv[1],argv[2]);
     char * nick = (char *)malloc(NICK_LEN);
     char * salon = (char *)malloc(CHANEL_LEN);
+    char * nick_sender_f = (char *)malloc(NICK_LEN);
+    char *file = (char *)malloc(FILE_NAME_LEN);
+    memset(file,'\0',FILE_NAME_LEN);
+    memset(nick_sender_f,'\0',NICK_LEN);
     memset(salon,'\0',CHANEL_LEN);
     
     printf("Connecting to server ... done! \n");
@@ -196,18 +430,35 @@ int main(int argc, char *argv[])
                 {
                     strcpy(salon,mssg.infos);
                 }
-                
+            
                 if(strcmp(salon,"") != 0)
                 {
                     // a determiner comment le client va voir les messages sur le salon 
-                    printf("[[ %s ]] [ %s ] : %s \n", salon ,mssg.nick_sender,buffer);
+                    printf("[[ %s ]] [ %s ] : ", salon ,mssg.nick_sender);
                 }
                 else
                 {
-                    printf("[ %s ] : %s\n ",mssg.nick_sender,buffer);
+                    printf("[ %s ] : ",mssg.nick_sender);
                 }
-                
-                
+
+                if (mssg.type != FILE_REQUEST && mssg.type != FILE_ACCEPT && mssg.type != FILE_REJECT)
+                {
+                    printf("%s \n",buffer);
+                }
+                if (mssg.type == FILE_REQUEST)
+                {
+                    printf(" wants you to accept the transfer of the file named '%s'. Do you accept? [Y/N]\n",buffer);
+                    strcpy(nick_sender_f,mssg.nick_sender);
+                }
+                if (mssg.type == FILE_ACCEPT)
+                {
+                    printf("accepted file transfert. sending to ip %s\n",buffer);
+                    client_sender(file,buffer,nick);
+                }  
+                if (mssg.type == FILE_REJECT)
+                {
+                    printf("cancelled file transfer\n");
+                } 
             }
             else if (received_structure <= 0 && received_message <= 0)
             {
@@ -234,9 +485,14 @@ int main(int argc, char *argv[])
                     break;
                 }
                 
-			    msg = messagefill(buffer,nick,salon);
+			    msg = messagefill(buffer,nick,salon,nick_sender_f,file);
                 ssize_t sent_structure = send(fds[0].fd,&msg,sizeof(struct message),0);
                 ssize_t sent_message = send(fds[0].fd,buffer,msg.pld_len,0);
+                if (msg.type == FILE_ACCEPT)
+                {
+                    client_receiver();
+                }
+                
                 if (sent_structure == -1)
                 {
                     perror("send");
@@ -254,10 +510,12 @@ int main(int argc, char *argv[])
     //freeing
     free(salon);
     free(nick);
+    free(file);
+    free(nick_sender_f);
     
     //close socket
     close(fds[0].fd);
 
     exit(EXIT_SUCCESS);
-    }
+}
 

@@ -95,6 +95,25 @@ int send_file_request(int fd,char *message,char *sender)
     return res;
 }
 
+int send_file_accept_reject(int fd,char *message,char *sender,int option)
+{
+    struct message msg;
+    memset(&msg, 0, sizeof(struct message));
+    msg.pld_len = strlen(message);
+    if (option == 1)
+    {
+        msg.type = FILE_ACCEPT;
+    }
+    if (option == 0)
+    {
+        msg.type = FILE_REJECT;
+    }
+    strcpy(msg.nick_sender,sender);
+    strncpy(msg.infos, "\0", 1);
+    int res = send_msg(fd,&msg,message);
+    return res;
+}
+
 int verify_nickname(int fd,char *nickname,struct SockAddrNode *head) // 3 code erreur, -2 si tres long -1 si nickname contient des caratere speciaux, 0 si nickname deja atribbue ,
 {
     char *n_copy = nickname;
@@ -223,7 +242,7 @@ int get_info_about_user(char *nickname,char *buff,struct SockAddrNode *head)
             char port[6] = {0};
             sprintf(port, "%d", ntohs(current->addr.sin_port));
             strcat(buff,port);
-            strcat(buff,"\n");
+            //strcat(buff,"\n");
             return 1;
         }
         current = current->next; 
@@ -622,7 +641,7 @@ int handle_request(int fd,struct message *msg,char *buff,struct SockAddrNode *he
         printf("%s\n",buff);
         if (fd_receiver < 0)
         {
-            strcpy(response,"The user you're trying to send to communicate with does not exist.\n");
+            strcpy(response,"The user you're trying to communicate with does not exist.\n");
             if(send_echo(fd,response,"Server")<= 0)
             {
                 return -1;
@@ -634,12 +653,30 @@ int handle_request(int fd,struct message *msg,char *buff,struct SockAddrNode *he
         }
         
     }
-
-    
-    
-    
-    
-
+    if (msg->type == FILE_ACCEPT)
+    {
+        int fd_receiver = fd_from_username(head,msg->infos);
+        struct SockAddrNode *client = get_client_node(head,fd);
+        send_file_accept_reject(fd_receiver,inet_ntoa((*client).addr.sin_addr),msg->nick_sender,1);
+    }
+    if (msg->type == FILE_REJECT)
+    {
+        char response[MSGLEN];
+        memset(response,'\0',MSGLEN);
+        int fd_receiver = fd_from_username(head,msg->infos);
+        if (fd_receiver < 0)
+        {
+            strcpy(response,"The user you're trying to communicate with does not exist.\n");
+            if(send_echo(fd,response,"Server")<= 0)
+            {
+                return -1;
+            }
+        }
+        else {
+           send_file_accept_reject(fd_receiver,"---",msg->nick_sender,0); 
+        }
+        
+    }
     
 
     return 0;

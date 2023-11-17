@@ -14,3 +14,6 @@
 #define MSGLEN 1024
 #define CHANEL_LEN 15
 #define MAX_CLIENT_CHANNEL 100
+#define FILE_NAME_LEN 1024
+#define FILE_LEN 2*1024*1024
+#define PORT 12345
