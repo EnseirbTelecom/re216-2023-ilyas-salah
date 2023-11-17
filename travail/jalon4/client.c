@@ -246,8 +246,8 @@ void write_file(int sockfd,char *filename)
 
         fwrite(buffer, 1, n, fp);
 
-        if (n < FILE_LEN)
-            break;
+        // if (n < FILE_LEN)
+        //     break;
     }
 
     fclose(fp);
@@ -274,7 +274,7 @@ void client_sender(char *file_path,char *IP,char *nick)
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_port = PORT;
 	server_addr.sin_addr.s_addr = inet_addr(IP);
-
+    printf("server ip set to %s",IP);
 	e = connect(sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr));
 	if (e == -1)
 	{
@@ -434,11 +434,11 @@ int main(int argc, char *argv[])
                 if(strcmp(salon,"") != 0)
                 {
                     // a determiner comment le client va voir les messages sur le salon 
-                    printf("[[ %s ]] [ %s ] : ", salon ,mssg.nick_sender);
+                    printf("\033[1;31m[[ %s ]]\033[0m [ %s ] : ", salon ,mssg.nick_sender);
                 }
                 else
                 {
-                    printf("[ %s ] : ",mssg.nick_sender);
+                    printf("\033[1;31m[ %s ]\033[0m : ",mssg.nick_sender);
                 }
 
                 if (mssg.type != FILE_REQUEST && mssg.type != FILE_ACCEPT && mssg.type != FILE_REJECT)
