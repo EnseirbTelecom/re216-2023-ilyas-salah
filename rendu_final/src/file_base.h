@@ -161,6 +161,7 @@ void client_sender(char *file_path,char *IP,char *nick)
 	printf("[+]File data sent successfully.\n");
 	printf("[+]Closing the connection.\n");
 	close(sockfd);
+    close(e);
 }
 
 void client_receiver()
@@ -207,7 +208,7 @@ void client_receiver()
 
     struct message mssg;
     memset(&mssg,0,sizeof(struct message));
-    ssize_t received_structure = recv(new_sock,&mssg,sizeof(struct message),0);
+    recv(new_sock,&mssg,sizeof(struct message),0);
     if (mssg.type == FILE_SEND)
     {
         printf("Receiving the file from %s...",mssg.nick_sender);

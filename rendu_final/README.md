@@ -69,6 +69,11 @@ The project is organized into several header files and source files:
 - Improved user experience with server-side handling of incorrect commands and suggestions.
 - Optimized memory usage in channel implementation.
 - Limited the number of clients in a channel for optimal memory utilization.
+- Connection between two clients in every local network (even if they have ip adresses distinct for example: two laptops connected with RG45 cable).
+
+### Note:
+
+- The application was tested for two laptops connected with RG45 cable.
 
 ## License
 
