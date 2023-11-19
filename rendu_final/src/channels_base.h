@@ -1,4 +1,7 @@
-#include "liste_chaine.h"
+#ifndef CHANNELS_BASE_H
+#define CHANNELS_BASE_H
+
+#include "clients_base.h"
 
 // Structure pour stocker struct sockaddr
 struct channel_node {
@@ -130,6 +133,106 @@ int quit_channel_node(struct channel_node** head, int fd_client , char *name)
     }
     return 0;
 }
+int verify_channel_name(int fd,char *channel_name,struct channel_node *head) // 3 code erreur, -2 si tres long -1 si channel_name contient des caratere speciaux, 0 si channel_name deja atribbue ,
+{
+    char *n_copy = channel_name;
+    while (*n_copy) {
+        if (!isalnum(*n_copy)) {
+            printf(RED"contains special character"RESET"\n");
+            return -1; 
+        }
+        n_copy++;
+    }
+    if (n_copy - channel_name >= CHANEL_LEN)
+    {
+        printf("too long!\n");
+        return -2;
+    }
+    
+    struct channel_node* current = head;
+    while (current != NULL)
+    {
+        if (strcmp(current->name,channel_name) == 0)
+        {
+            printf(RED"Channel %s already exists"RESET" \n",current->name);
+            return 0;
+        }
+        current = current->next; 
+    }
+    return 1;
+}
+
+
+
+
+
+int all_channels_name(char *buff ,struct channel_node *head )
+{
+    struct channel_node* current = head;
+    if (current == NULL)
+    {
+        strcpy(buff,RED"0 channels available to join right now"RESET"\n");
+        return 0;
+    }
+    
+
+    while (current != NULL)
+    {
+        if (strcmp(current->name,"\0") != 0)
+        {
+            strcat(buff,"\t\t\t - ");
+            strcat(buff,current->name);
+            strcat(buff,"\n");
+        }
+        current = current->next; 
+    }
+    return 1;
+}
+
+int channel_exist(struct channel_node *head,char *channel_name)
+{
+    // 1 if channel exists , -1 if not , useful before joining a channel
+    struct channel_node *current = head;
+    while (current != NULL)
+    {
+        if (strcmp(current->name,channel_name) == 0)
+        {
+            return 1;
+        }
+        current = current->next;
+        
+    }
+    return -1;
+}
+
+int join_channel(struct channel_node *head,char *channel_name,struct SockAddrNode *client)
+{
+    // 1 for success , -2 for number max of users in channel reached , -1 no such channel name.
+    struct channel_node *current = head;
+    while (current != NULL)
+    {
+        if (strcmp(current->name,channel_name) == 0)
+        {
+            for (int i = 0; i < MAX_CLIENT_CHANNEL; i++)
+            {
+                if (current->clients[i] == NULL)
+                {
+
+                    current->clients[i] = client;
+                    current->clients_left ++;
+                    strcpy(current->clients[i]->salon,channel_name);
+                    return 1;
+                }
+                
+            }
+            return -2;
+        }
+        current = current->next;
+        
+    }
+    return -1;
+    
+}
 
 // Fonction pour libérer la mémoire de la liste chaînée
 void freeChannelList(struct channel_node* head) {
@@ -140,3 +243,5 @@ void freeChannelList(struct channel_node* head) {
         free(temp);
     }
 }
+
+#endif

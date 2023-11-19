@@ -6,8 +6,8 @@ EXECS = client server #client2
 
 all: $(EXECS) 
 
-client: msg_struct.h common.h 
-server: communicate.h common.h channels.h
+client: file_base.h common.h 
+server: communicate.h common.h channels_base.h handle_msg.h
 #client2: msg_struct.h common.h
 
 %: %.c
