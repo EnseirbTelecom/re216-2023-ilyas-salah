@@ -74,6 +74,7 @@ The project is organized into several header files and source files:
 ### Note:
 
 - The application was tested for two laptops connected with RG45 cable.
+- The folder `files` contains some files to test the P2P file transfer.
 
 ## License
 
